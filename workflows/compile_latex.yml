@@ -1,0 +1,106 @@
+name: Compile LaTeX document
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: LaTeX engine
+        type: choice
+        options:
+          - pdflatex
+          - xelatex
+          - lualatex
+        default: pdflatex
+      document:
+        description: Document file path
+        type: string
+        required: true
+        default: main.tex
+      release_tag:
+        description: Release tag
+        type: string
+        required: true
+        default: main
+      packages:
+        description: Packages list file
+        type: string
+        required: true
+        default: requirements.txt
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      LATEX_ENGINE: ${{ inputs.engine }}
+      DOCUMENT: ${{ inputs.document }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      PACKAGES_FILE: ${{ inputs.packages }}
+
+    steps:
+      # Ref: https://github.com/actions/checkout
+      - name: Checkout document repository
+        uses: actions/checkout@v6
+
+      - name: Download latest tinytex installer
+        uses: actions/checkout@v6
+        with:
+          repository: cloudy-sfu/Tinytex-installer
+          path: .tinytex-installer
+          persist-credentials: false
+
+      - name: Install latest tinytex
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          & .\.tinytex-installer\install.ps1
+          $tex_path = Join-Path $env:APPDATA "TinyTeX\bin\windows"
+          $env:PATH = "$tex_path;$env:PATH"
+          $tex_path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Get-Command tlmgr -ErrorAction Stop
+          tlmgr update --self
+          tlmgr --version
+
+      - name: Install packages
+        run: |
+          # Reading fails immediately if the required file does not exist.
+          $packages = Get-Content -LiteralPath $env:PACKAGES_FILE -ErrorAction Stop |
+            Where-Object { $_.Trim() -ne "" }
+          tlmgr install $packages
+
+          # latexmk handles repeated compilation and bibliography passes.
+          tlmgr install latexmk
+
+          # Refresh environment mappings.
+          tlmgr path add
+
+      - name: Compile the document
+        run: |
+          $engineOption = @{
+            pdflatex = "-pdf"
+            xelatex  = "-xelatex"
+            lualatex = "-lualatex"
+          }[$env:LATEX_ENGINE]
+
+          latexmk $engineOption -cd -interaction=nonstopmode -halt-on-error `
+            "-outdir=$env:RUNNER_TEMP/pdf" $env:DOCUMENT
+
+      - name: Move release tag to the built commit
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          git tag --force "$env:RELEASE_TAG" "$env:GITHUB_SHA"
+          git push --force origin "refs/tags/$env:RELEASE_TAG"
+
+      - name: Publish PDF
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ inputs.release_tag }}
+          artifacts: ${{ runner.temp }}/pdf/*.pdf
+          allowUpdates: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
