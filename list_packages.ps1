@@ -1,12 +1,39 @@
-# Ref: https://www.tug.org/texlive/doc/tlmgr.html
 param (
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$FlsPath,
-    [string]$OutputPath = "requirements.txt"
+    [string]$Engine,
+
+    [Parameter(Mandatory = $true, Position = 1)]
+    [string]$TexPath,
+
+    [Parameter(Mandatory = $false)]
+    [string]$ReqPath = "requirements.txt"
 )
 
-if (-not (Test-Path $FlsPath)) {
-    Write-Error "FLS file not found: $FlsPath"
+if (-not (Test-Path $TexPath)) {
+    Write-Error "TeX file not found: $TexPath"
+    exit 1
+}
+
+# Derive expected .fls file path (current directory or TeX file directory)
+$baseName = [System.IO.Path]::GetFileNameWithoutExtension($TexPath)
+$flsInCurrentDir = "$baseName.fls"
+$flsInTexDir = [System.IO.Path]::ChangeExtension($TexPath, ".fls")
+
+# Remove any stale .fls files from previous compilations
+if (Test-Path $flsInCurrentDir) { Remove-Item $flsInCurrentDir -Force }
+if (($flsInCurrentDir -ne $flsInTexDir) -and (Test-Path $flsInTexDir)) { Remove-Item $flsInTexDir -Force }
+
+# Ref: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_operators#call-operator-
+Write-Host "Running LaTeX engine: $Engine -recorder $TexPath"
+& $Engine -recorder $TexPath
+
+# Locate the newly generated .fls file
+if (Test-Path $flsInCurrentDir) {
+    $FlsPath = $flsInCurrentDir
+} elseif (Test-Path $flsInTexDir) {
+    $FlsPath = $flsInTexDir
+} else {
+    Write-Error "Failed to locate generated .fls file ($flsInCurrentDir or $flsInTexDir)."
     exit 1
 }
 
@@ -66,6 +93,6 @@ foreach ($line in $flsLines) {
 
 # 3. Output sorted results to requirements file
 $sortedPackages = $requiredPackages | Sort-Object
-$sortedPackages | Set-Content -Path $OutputPath -Encoding UTF8
+$sortedPackages | Set-Content -Path $ReqPath -Encoding UTF8
 
-Write-Host "Successfully generated '$OutputPath' with $($sortedPackages.Count) packages."
+Write-Host "Successfully generated '$ReqPath' with $($sortedPackages.Count) packages."

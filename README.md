@@ -32,18 +32,27 @@ Run the following command in PowerShell.
 
 ### Dependencies list
 
-To analyze the document and list used TeX Live packages, run the following command with arguments in PowerShell.
+Let the Latex compiling command be `[compile command]`, for example:
 
-```powershell
-.\list_packages.ps1
+```
+pdflatex main.tex
 ```
 
-Arguments:
+Latex engine can be absolute or relative path of Latex execution file. However, it doesn't support Latex arguments.
 
-| Argument      | Required? | Description                                                  |
-| ------------- | --------- | ------------------------------------------------------------ |
-| Position 1    | Yes       | File path of the document to analyze.                        |
-| `-OutputPath` | No        | File path to output used TeX Live packages. Default: `requirements.txt` |
+To list the used TeX Live packages, run the following command with arguments in PowerShell.
+
+```powershell
+.\list_packages.ps1 [compile command]
+```
+
+Arguments (after `[compile command]`):
+
+| Argument   | Required? | Description                                                  |
+| ---------- | --------- | ------------------------------------------------------------ |
+| `-ReqPath` | No        | File path to output used TeX Live packages. Default: `requirements.txt` |
+
+
 
 ### Duplicate reference
 

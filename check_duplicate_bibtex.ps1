@@ -3,16 +3,16 @@
 
 [CmdletBinding()]
 param (
-    [string]$Filename = "ref.bib"
+    [string]$BibPath = "references.bib"
 )
 
-if (-not (Test-Path -LiteralPath $Filename)) {
-    Write-Error "File not found: $Filename"
+if (-not (Test-Path -LiteralPath $BibPath)) {
+    Write-Error "File not found: $BibPath"
     return
 }
 
 $refPattern = '^@\w+\s*\{\s*([^,]+),'
-$lines = Get-Content -LiteralPath $Filename
+$lines = Get-Content -LiteralPath $BibPath
 
 $refs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
